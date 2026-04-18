@@ -29,8 +29,11 @@
     .term-font { font-family: 'Share Tech Mono', 'Pretendard', monospace; }
 
     #intro-screen { position: fixed; top:0; left:0; width:100%; height:100%; background:#020203; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; cursor:pointer; transition:opacity 1.5s; }
-    .intro-text { font-size:1.4rem; color:var(--voyager-gold); text-align:center; line-height:2; text-shadow:var(--voyager-glow); opacity:0; animation:fadeInOut 3s infinite alternate; white-space:pre-wrap; }
-    @keyframes fadeInOut { 0%{opacity:0.3;} 100%{opacity:1;} }
+    
+    /* 인트로 텍스트 & 깜빡이는 커서 효과 (2번) */
+    .intro-text { font-size:1.4rem; color:var(--voyager-gold); text-align:center; line-height:2; text-shadow:var(--voyager-glow); white-space:pre-wrap; margin-bottom: 20px;}
+    .type-cursor { display:inline-block; width:10px; height:20px; background:var(--voyager-gold); vertical-align:middle; margin-left:4px; animation:blink 1s infinite; }
+    @keyframes blink { 0%, 100% {opacity:1;} 50% {opacity:0;} }
 
     #app { display:none; width:100%; height:100%; flex-direction:row; }
     
@@ -118,6 +121,27 @@
     #w-content { border-radius:0 0 4px 4px; min-height:400px; height:auto; padding:30px; background:rgba(0,0,0,0.3); border:var(--border-line); color:#fff; outline:none; overflow-y:auto; line-height:1.8; font-size:1.05rem; }
     #w-content:focus { border-color:var(--voyager-gold); background:rgba(0,0,0,0.5); }
     
+    /* 📌 4번: 접은글 스타일 강화 */
+    .rich-details { background: rgba(0,0,0,0.4); border: 1px solid rgba(var(--accent-rgb), 0.3); border-radius: 6px; padding: 12px 16px; margin: 15px 0; transition: 0.3s; }
+    .rich-details[open] { background: rgba(var(--accent-rgb), 0.05); border-color: var(--voyager-gold); }
+    .rich-details summary { font-weight: 600; color: var(--voyager-gold); cursor: pointer; list-style: none; outline: none; margin: -12px -16px; padding: 12px 16px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .rich-details summary::-webkit-details-marker { display: none; }
+    .rich-details summary::after { content: '▼'; font-size: 0.8rem; transition: 0.3s; transform: rotate(-90deg); color: var(--moon-dim); }
+    .rich-details[open] summary::after { transform: rotate(0); color: var(--voyager-gold); }
+    .details-content { margin-top: 15px; padding-top: 15px; border-top: 1px dashed rgba(var(--accent-rgb), 0.3); color: var(--moon-light); font-size: 0.95rem; line-height: 1.8; }
+
+    /* 📌 5번: 인용구(blockquote) 기능 추가 */
+    #w-content blockquote, #v-content blockquote {
+        border-left: 4px solid var(--voyager-gold);
+        background: rgba(var(--accent-rgb), 0.08);
+        padding: 15px 20px;
+        margin: 15px 0;
+        color: #fff;
+        border-radius: 0 4px 4px 0;
+        font-style: normal;
+        line-height: 1.8;
+    }
+
     .notion-tpl-page { padding: 10px 0; max-width: 100%; }
     .notion-h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 15px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
     .notion-h2 { font-size: 1.5rem; font-weight: 600; margin-top: 30px; margin-bottom: 10px; color: var(--voyager-gold); }
@@ -266,6 +290,7 @@
                     <button onclick="openTableModal()">▦ 표</button>
                     <span class="divider">|</span>
                     <button onclick="insertToggle()">▼ 접은글</button>
+                    <button onclick="insertQuote()" style="color:#a3c2c2;">❞ 인용구</button>
                     <button onclick="insertYouTube()" style="color:#ff5c5c;">▶ 유튜브</button>
                     <button onclick="insertNotionTemplate()" style="background:rgba(var(--accent-rgb), 0.1); border-color:var(--voyager-gold);">📝 노션 템플릿</button>
                     
@@ -386,7 +411,7 @@
         homeBannerImg: "", fontUrl: "", themes: [{ id: 1, name: "Voyager Gold", hex: "#c8b48e" }],
         siteName: "Voyager\nArchive", homeTitle: "Voyager Record", homeDesc: "Archive of the stars.",
         introMain: "\" To the makers of music \"", guestbookCatId: null, categories: [{id:1, name:"Main", parentId:null}], posts: [],
-        catViewModes: {} // 카테고리별 뷰 모드 저장소
+        catViewModes: {} 
     };
 
     let db = JSON.parse(JSON.stringify(defaultDb));
@@ -405,10 +430,35 @@
                 if(data.themes) db.themes = Object.values(data.themes); 
                 if(data.noticeOrder) db.noticeOrder = Object.values(data.noticeOrder);
             }
-            if (!isFirstLoad) { db.categories.filter(c => c.parentId == null).forEach(c => expandedCats.add(c.id)); isFirstLoad = true; }
+            if (!isFirstLoad) { 
+                db.categories.filter(c => c.parentId == null).forEach(c => expandedCats.add(c.id)); 
+                isFirstLoad = true; 
+                
+                // 📌 1, 2번: 인트로 타이핑 효과 실행
+                let introText = db.introMain || "ACCESS TERMINAL";
+                typeIntroText(introText);
+            }
             applyUI(); renderNav();
             if($('settingModal').style.display === 'flex') { updateCatMgmt(); updateThemeMgmt(); }
         });
+    }
+
+    // 인트로 타이핑 함수
+    function typeIntroText(text) {
+        const display = $('intro-text-display');
+        display.innerHTML = '';
+        let i = 0;
+        let timer = setInterval(() => {
+            if (i < text.length) {
+                let char = text.charAt(i);
+                if(char === '\n') char = '<br>';
+                let currentHTML = display.innerHTML.replace('<span class="type-cursor"></span>', '');
+                display.innerHTML = currentHTML + char + '<span class="type-cursor"></span>';
+                i++;
+            } else {
+                clearInterval(timer);
+            }
+        }, 60); // 타이핑 속도 조절
     }
 
     function saveDB() { database.ref('voyagerArchive').set(db); }
@@ -431,7 +481,6 @@
         if(isAuthed) { $('auth-status').innerText = "🔓 AUTHENTICATED"; $('auth-status').style.color="var(--voyager-gold)"; $('admin-actions').style.display='flex'; $('btn-guest-write').style.display='none'; }
         else { $('auth-status').innerText = "🔒 READ ONLY"; $('auth-status').style.color="var(--moon-dim)"; $('admin-actions').style.display='none'; if(db.guestbookCatId) $('btn-guest-write').style.display='block'; }
         
-        // 유튜브 BGM 플레이어 업데이트 로직 복구 (2번 문제)
         if(db.bgmId && db.bgmId.trim() !== '') {
             $('bgm-widget').style.display = 'block';
             $('bgm-iframe').src = `https://www.youtube.com/embed/${db.bgmId.trim()}`;
@@ -519,10 +568,8 @@
         $('board-title').innerText = cat ? cat.name : 'Unknown';
         
         let posts = db.posts.filter(p => p.catId == id).sort((a,b) => b.isNotice - a.isNotice || b.id - a.id);
-        
         let mode = (db.catViewModes && db.catViewModes[id]) ? db.catViewModes[id] : 'list';
         setViewMode(mode, false);
-        
         renderPostList(posts);
     }
 
@@ -554,9 +601,43 @@
         formatDoc('insertHTML', html);
     }
 
+    // 📌 3번: 이미지에 링크 적용 로직 수정
     window.insertLink = function() { 
-        const url = prompt("연결할 웹 주소(URL)를 입력하세요.\n(※ 이미지에 링크를 걸려면 에디터 안의 이미지를 클릭한 뒤 이 버튼을 누르세요.)", "https://"); 
-        if(url && url !== "https://") formatDoc('createLink', url); 
+        saveSelection();
+        const url = prompt("연결할 웹 주소(URL)를 입력하세요.\n(이미지에 링크를 걸려면 에디터에서 이미지를 클릭한 뒤 이 버튼을 누르세요.)", "https://"); 
+        if(!url || url === "https://") { restoreSelection(); return; }
+        restoreSelection();
+        
+        let sel = window.getSelection();
+        if (sel.rangeCount === 0) return;
+        let range = sel.getRangeAt(0);
+
+        // 이미지 노드가 선택되어 있는지 확인하는 로직 강화
+        let isImgOnly = false;
+        let imgElem = null;
+
+        if (range.startContainer === range.endContainer && range.endOffset - range.startOffset === 1) {
+            let child = range.startContainer.childNodes[range.startOffset];
+            if (child && child.nodeName === 'IMG') {
+                isImgOnly = true;
+                imgElem = child;
+            }
+        } else if (sel.anchorNode && sel.anchorNode.nodeName === 'IMG') {
+            isImgOnly = true;
+            imgElem = sel.anchorNode;
+        }
+
+        // 이미지라면 a태그로 직접 감싸기
+        if (isImgOnly && imgElem) {
+            let a = document.createElement('a');
+            a.href = url;
+            a.target = "_blank";
+            imgElem.parentNode.insertBefore(a, imgElem);
+            a.appendChild(imgElem);
+        } else {
+            // 일반 텍스트 드래그 시
+            formatDoc('createLink', url);
+        }
     }
 
     window.openPostLinkModal = function() {
@@ -584,7 +665,19 @@
         }
     }
 
-    window.insertToggle = function() { const title = prompt("접은글 제목"); if(title) formatDoc('insertHTML', `<br><details class="rich-details"><summary>${title}</summary><div class="details-content">내용</div></details><br>`); }
+    // 📌 4번: 접은글 템플릿 수정
+    window.insertToggle = function() { 
+        const title = prompt("접은글 제목"); 
+        if(title) {
+            formatDoc('insertHTML', `<details class="rich-details"><summary>${title}</summary><div class="details-content"><p><br></p></div></details><p><br></p>`);
+        } 
+    }
+    
+    // 📌 5번: 인용구 삽입 기능
+    window.insertQuote = function() {
+        formatDoc('formatBlock', 'blockquote');
+    }
+
     window.insertYouTube = function() { const url = prompt("YouTube URL"); const match = url.match(/([^"&?\/\s]{11})/); if(match) formatDoc('insertHTML', `<div contenteditable="false" class="youtube-embed-wrapper"><iframe src="https://www.youtube.com/embed/${match[1]}" frameborder="0" allowfullscreen></iframe></div><br>`); }
     
     window.insertNotionTemplate = function() {
@@ -629,7 +722,6 @@
         openModal('settingModal');
     }
 
-    // 수정/삭제 버튼 연결 로직 복구 (1번 문제)
     window.handleAuthAction = function(action) { 
         checkAuth(() => { 
             if(action === 'write') goWrite(); 
