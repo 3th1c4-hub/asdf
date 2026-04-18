@@ -57,7 +57,7 @@
     .page.active { display:block; }
     @keyframes fadeUp { from{opacity:0; transform:translateY(20px);} to{opacity:1;} }
 
-    /* 대문 디자인 원상 복구 (1번) */
+    /* 대문 디자인 */
     .home-container { display:flex; flex-direction:column; align-items:center; }
     .home-hero-img { width: 100%; max-width: 900px; height: 380px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(var(--accent-rgb), 0.3); box-shadow: 0 5px 25px rgba(0,0,0,0.5), 0 0 15px rgba(var(--accent-rgb), 0.2); margin-bottom: 40px; display: none; }
     .home-banner { border: 1px solid rgba(var(--accent-rgb), 0.5); background: rgba(5,6,8,0.9); padding: 40px; text-align: left; border-radius: 4px; width: 100%; max-width: 500px; box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.15); display: flex; flex-direction: column; position: relative; }
@@ -79,7 +79,6 @@
     .shortcut-card:hover .shortcut-img { opacity: 1; transform: scale(1.05); }
     .shortcut-info { position: absolute; bottom: 0; left: 0; width: 100%; padding: 25px 15px 15px; background: linear-gradient(transparent, rgba(0,0,0,0.9)); pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; }
     
-    /* 카드 카테고리/제목 디자인 분리 (3번) */
     .shortcut-cat { font-family: 'Pretendard', sans-serif !important; color: #fff; background: rgba(var(--accent-rgb), 0.7); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 10px; text-shadow: none; }
     .shortcut-title { color: #fff; font-size: 1.1rem; font-weight: 700; line-height: 1.3; text-shadow: 0 2px 4px rgba(0,0,0,0.8); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
 
@@ -150,7 +149,7 @@
     .modal-bg { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:none; justify-content:center; align-items:center; z-index:10000; backdrop-filter:blur(5px); }
     .modal { background:var(--bg-panel); padding:40px; border-radius:8px; width:650px; border:var(--border-gold); max-height:90vh; display:flex; flex-direction:column;}
     
-    /* 설정 모달 라벨 스타일 수정 (겹침 방지) */
+    /* 설정 모달 라벨 스타일 수정 */
     .modal-label { color:var(--voyager-gold); font-size:0.9rem; font-weight:600; display:block; margin-bottom:8px; margin-top:20px; }
     .modal-label:first-child { margin-top: 0; }
     
@@ -386,7 +385,8 @@
         masterPw: "1234", viewMode: "list", bgmId: "", activeThemeId: 1,
         homeBannerImg: "", fontUrl: "", themes: [{ id: 1, name: "Voyager Gold", hex: "#c8b48e" }],
         siteName: "Voyager\nArchive", homeTitle: "Voyager Record", homeDesc: "Archive of the stars.",
-        introMain: "\" To the makers of music \"", guestbookCatId: null, categories: [{id:1, name:"Main", parentId:null}], posts: []
+        introMain: "\" To the makers of music \"", guestbookCatId: null, categories: [{id:1, name:"Main", parentId:null}], posts: [],
+        catViewModes: {} // 카테고리별 뷰 모드 저장소
     };
 
     let db = JSON.parse(JSON.stringify(defaultDb));
@@ -430,7 +430,16 @@
         if(db.homeBannerImg) { $('home-banner-img').src = db.homeBannerImg; $('home-banner-img').style.display='block'; }
         if(isAuthed) { $('auth-status').innerText = "🔓 AUTHENTICATED"; $('auth-status').style.color="var(--voyager-gold)"; $('admin-actions').style.display='flex'; $('btn-guest-write').style.display='none'; }
         else { $('auth-status').innerText = "🔒 READ ONLY"; $('auth-status').style.color="var(--moon-dim)"; $('admin-actions').style.display='none'; if(db.guestbookCatId) $('btn-guest-write').style.display='block'; }
-        renderHomeShortcuts(); setViewMode(db.viewMode, false);
+        
+        renderHomeShortcuts(); 
+        
+        // 현재 카테고리에 맞는 뷰 모드 적용 (없으면 기본값 list)
+        if(currentCatId) {
+            let mode = (db.catViewModes && db.catViewModes[currentCatId]) ? db.catViewModes[currentCatId] : 'list';
+            setViewMode(mode, false);
+        } else {
+            setViewMode(db.viewMode, false);
+        }
     }
 
     window.toggleSidebar = function() {
@@ -474,7 +483,15 @@
     function renderNav() { $('category-list').innerHTML = buildNav(); }
 
     window.setViewMode = function(mode, doSave = true) {
-        db.viewMode = mode; if(doSave) saveDB();
+        // 현재 열려있는 카테고리가 있다면 해당 카테고리에 뷰 모드 저장 (기능 2번)
+        if(currentCatId) {
+            if(!db.catViewModes) db.catViewModes = {};
+            db.catViewModes[currentCatId] = mode;
+        } else {
+            db.viewMode = mode;
+        }
+        if(doSave) saveDB();
+
         const container = $('post-list-container'), btnList = $('btn-view-list'), btnGallery = $('btn-view-gallery');
         if(mode === 'gallery') { container.className = 'view-gallery'; btnGallery.classList.add('active'); btnList.classList.remove('active'); } 
         else { container.className = 'view-list'; btnList.classList.add('active'); btnGallery.classList.remove('active'); }
@@ -493,7 +510,13 @@
         currentCatId = id; expandedCats.add(id); goPage('board');
         const cat = db.categories.find(c=>c.id==id);
         $('board-title').innerText = cat ? cat.name : 'Unknown';
+        
         let posts = db.posts.filter(p => p.catId == id).sort((a,b) => b.isNotice - a.isNotice || b.id - a.id);
+        
+        // 해당 카테고리의 뷰 모드를 불러오기
+        let mode = (db.catViewModes && db.catViewModes[id]) ? db.catViewModes[id] : 'list';
+        setViewMode(mode, false);
+        
         renderPostList(posts);
     }
 
@@ -586,7 +609,23 @@
         return db.categories.filter(c => c.parentId == parentId).map(c => `<option value="${c.id}" ${c.id==selId?'selected':''}>${'&nbsp;'.repeat(level*4)}${c.name}</option>` + buildSelect(c.id, level+1, selId)).join('');
     }
 
-    window.handleAuthAction = function(action) { checkAuth(() => { if(action === 'write') goWrite(); else openModal('settingModal'); }); }
+    /* 설정 모달 열기 함수 복구 (기능 1번 해결) */
+    window.openSettingModal = function() {
+        $('s-new-pw').value = '';
+        $('s-home-banner-img').value = db.homeBannerImg || '';
+        $('s-font-url').value = db.fontUrl || '';
+        $('s-bgm-id').value = db.bgmId || '';
+        $('s-intro-main').value = db.introMain || '';
+        $('s-site-name').value = db.siteName || '';
+        $('s-home-title').value = db.homeTitle || '';
+        $('s-home-desc').value = db.homeDesc || '';
+        updateThemeMgmt();
+        updateCatMgmt();
+        openModal('settingModal');
+    }
+
+    // 시스템 설정 버튼 연결
+    window.handleAuthAction = function(action) { checkAuth(() => { if(action === 'write') goWrite(); else openSettingModal(); }); }
     function checkAuth(cb) { if(isAuthed) cb(); else { openModal('authModal'); authCallback = cb; } }
     window.processAuth = function() { if($('auth-password').value === db.masterPw) { isAuthed = true; closeModal('authModal'); applyUI(); if(authCallback) authCallback(); } else alert('비밀번호 불일치'); }
 
@@ -668,7 +707,6 @@
         
         if(!shortcuts.length) { wrap.style.display = 'none'; return; } wrap.style.display = 'block';
         
-        // 3번: 카테고리 텍스트 분리 렌더링
         container.innerHTML = shortcuts.map(p => `
             <div class="shortcut-card" draggable="true" ondragstart="onDragStart(event, ${p.id})" ondragend="onDragEnd(event)" ondragover="onDragOver(event)" ondrop="onDrop(event, ${p.id})" onclick="viewPost(${p.id})">
                 ${p.imgUrl ? `<img src="${p.imgUrl}" class="shortcut-img">` : `<div class="shortcut-img"></div>`}
