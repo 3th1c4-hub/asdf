@@ -357,7 +357,10 @@
         <div id="t-cols-wrap" style="margin-bottom:15px; display:flex; justify-content:space-between;"><label>열(Column)</label><input type="number" id="t-cols" class="input-control" style="width:100px;" value="3"></div>
         <div style="margin-bottom:15px; display:flex; justify-content:space-between;"><label>너비(%)</label><input type="number" id="t-width" class="input-control" style="width:100px;" value="100"></div>
         <div style="margin-bottom:25px; display:flex; justify-content:space-between;"><label>배경색</label><div><input type="color" id="t-bg" value="#000000"><input type="checkbox" id="t-bg-transparent" checked>투명</div></div>
-        <div style="display:flex; gap:10px; justify-content:flex-end;"><button class="btn btn-solid" onclick="applyTable()">적용</button><button class="btn" onclick="closeModal('tableModal')">취소</button></div>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button class="btn btn-solid" onclick="applyTable()">적용</button>
+            <button class="btn" onclick="closeModal('tableModal'); restoreSelection();">취소</button>
+        </div>
     </div>
 </div>
 
@@ -680,23 +683,41 @@
         formatDoc('insertHTML', notionHtml);
     }
 
+    // 📌 오류 수정: 표 입력 시 커서 잃어버리는 현상 해결
     let currentEditingTable = null;
     window.openTableModal = function() {
-        const sel = window.getSelection(); let node = sel.anchorNode;
+        saveSelection(); // 모달 창을 띄우기 전에 현재 에디터의 커서 위치를 기억해둠
+        let node = savedRange ? savedRange.startContainer : null;
+        
         while(node && node.nodeName !== 'TABLE' && node.id !== 'w-content') { node = node.parentNode; }
         if(node && node.nodeName === 'TABLE') {
-            currentEditingTable = node; $('t-rows-wrap').style.display = 'none'; $('t-cols-wrap').style.display = 'none';
-            $('t-width').value = node.style.width.replace('%','') || '100'; openModal('tableModal');
-        } else { currentEditingTable = null; $('t-rows-wrap').style.display = 'flex'; $('t-cols-wrap').style.display = 'flex'; openModal('tableModal'); }
+            currentEditingTable = node; 
+            $('t-rows-wrap').style.display = 'none'; 
+            $('t-cols-wrap').style.display = 'none';
+            $('t-width').value = node.style.width.replace('%','') || '100'; 
+            openModal('tableModal');
+        } else { 
+            currentEditingTable = null; 
+            $('t-rows-wrap').style.display = 'flex'; 
+            $('t-cols-wrap').style.display = 'flex'; 
+            openModal('tableModal'); 
+        }
     }
+    
     window.applyTable = function() {
         const w = $('t-width').value + '%', bg = $('t-bg-transparent').checked ? 'transparent' : $('t-bg').value;
-        if(currentEditingTable) { currentEditingTable.style.width = w; currentEditingTable.style.backgroundColor = bg; }
-        else {
+        
+        if(currentEditingTable) { 
+            currentEditingTable.style.width = w; 
+            currentEditingTable.style.backgroundColor = bg; 
+        } else {
+            restoreSelection(); // 기억해둔 커서 위치를 복구한 후 표를 삽입
             let html = `<br><table class="rich-table" style="width:${w}; background-color:${bg};"><tbody>`;
             for(let i=0; i<$('t-rows').value; i++) { html += '<tr>'; for(let j=0; j<$('t-cols').value; j++) html += '<td>-</td>'; html += '</tr>'; }
-            html += '</tbody></table><br>'; formatDoc('insertHTML', html);
-        } closeModal('tableModal');
+            html += '</tbody></table><br>'; 
+            formatDoc('insertHTML', html);
+        } 
+        closeModal('tableModal');
     }
 
     function buildSelect(parentId = null, level = 0, selId = null) {
@@ -790,7 +811,6 @@
 
     let draggedNoticeId = null;
     
-    // 권한 검사 (2번)
     window.onDragStart = function(e, id) { 
         if(!isAuthed) { e.preventDefault(); return; }
         draggedNoticeId = id; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.style.opacity = '0.5', 0); 
@@ -822,7 +842,6 @@
         
         if(!shortcuts.length) { wrap.style.display = 'none'; return; } wrap.style.display = 'block';
         
-        // 로그인 상태에 따라 draggable 속성 조절
         container.innerHTML = shortcuts.map(p => `
             <div class="shortcut-card" draggable="${isAuthed ? 'true' : 'false'}" ondragstart="onDragStart(event, ${p.id})" ondragend="onDragEnd(event)" ondragover="onDragOver(event)" ondrop="onDrop(event, ${p.id})" onclick="viewPost(${p.id})">
                 ${p.imgUrl ? `<img src="${p.imgUrl}" class="shortcut-img">` : `<div class="shortcut-img"></div>`}
