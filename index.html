@@ -347,7 +347,7 @@
             <div style="display:flex; gap:10px; align-items:center; background:rgba(0,0,0,0.3); padding:10px; border-radius:4px;"><input type="color" id="s-new-theme-color" style="cursor:pointer;"><input type="text" id="s-new-theme-name" class="input-control" style="flex:1; margin-bottom:0;" placeholder="새 테마 이름"><button class="btn btn-solid" onclick="addTheme()">추가</button></div>
 
             <label class="modal-label">2. 사이드바 BGM 유튜브 ID</label>
-            <input type="text" id="s-bgm-id" class="input-control">
+            <input type="text" id="s-bgm-id" class="input-control" placeholder="예: dQw4w9WgXcQ">
             
             <label class="modal-label">3. 시스템 정보</label>
             <input type="password" id="s-new-pw" class="input-control" placeholder="새 마스터 비밀번호">
@@ -431,9 +431,17 @@
         if(isAuthed) { $('auth-status').innerText = "🔓 AUTHENTICATED"; $('auth-status').style.color="var(--voyager-gold)"; $('admin-actions').style.display='flex'; $('btn-guest-write').style.display='none'; }
         else { $('auth-status').innerText = "🔒 READ ONLY"; $('auth-status').style.color="var(--moon-dim)"; $('admin-actions').style.display='none'; if(db.guestbookCatId) $('btn-guest-write').style.display='block'; }
         
+        // 유튜브 BGM 플레이어 업데이트 로직 복구 (2번 문제)
+        if(db.bgmId && db.bgmId.trim() !== '') {
+            $('bgm-widget').style.display = 'block';
+            $('bgm-iframe').src = `https://www.youtube.com/embed/${db.bgmId.trim()}`;
+        } else {
+            $('bgm-widget').style.display = 'none';
+            $('bgm-iframe').src = '';
+        }
+
         renderHomeShortcuts(); 
         
-        // 현재 카테고리에 맞는 뷰 모드 적용 (없으면 기본값 list)
         if(currentCatId) {
             let mode = (db.catViewModes && db.catViewModes[currentCatId]) ? db.catViewModes[currentCatId] : 'list';
             setViewMode(mode, false);
@@ -483,7 +491,6 @@
     function renderNav() { $('category-list').innerHTML = buildNav(); }
 
     window.setViewMode = function(mode, doSave = true) {
-        // 현재 열려있는 카테고리가 있다면 해당 카테고리에 뷰 모드 저장 (기능 2번)
         if(currentCatId) {
             if(!db.catViewModes) db.catViewModes = {};
             db.catViewModes[currentCatId] = mode;
@@ -513,7 +520,6 @@
         
         let posts = db.posts.filter(p => p.catId == id).sort((a,b) => b.isNotice - a.isNotice || b.id - a.id);
         
-        // 해당 카테고리의 뷰 모드를 불러오기
         let mode = (db.catViewModes && db.catViewModes[id]) ? db.catViewModes[id] : 'list';
         setViewMode(mode, false);
         
@@ -609,7 +615,6 @@
         return db.categories.filter(c => c.parentId == parentId).map(c => `<option value="${c.id}" ${c.id==selId?'selected':''}>${'&nbsp;'.repeat(level*4)}${c.name}</option>` + buildSelect(c.id, level+1, selId)).join('');
     }
 
-    /* 설정 모달 열기 함수 복구 (기능 1번 해결) */
     window.openSettingModal = function() {
         $('s-new-pw').value = '';
         $('s-home-banner-img').value = db.homeBannerImg || '';
@@ -624,8 +629,15 @@
         openModal('settingModal');
     }
 
-    // 시스템 설정 버튼 연결
-    window.handleAuthAction = function(action) { checkAuth(() => { if(action === 'write') goWrite(); else openSettingModal(); }); }
+    // 수정/삭제 버튼 연결 로직 복구 (1번 문제)
+    window.handleAuthAction = function(action) { 
+        checkAuth(() => { 
+            if(action === 'write') goWrite(); 
+            else if(action === 'edit') goWrite(currentPostId);
+            else if(action === 'delete') deletePost();
+            else openSettingModal(); 
+        }); 
+    }
     function checkAuth(cb) { if(isAuthed) cb(); else { openModal('authModal'); authCallback = cb; } }
     window.processAuth = function() { if($('auth-password').value === db.masterPw) { isAuthed = true; closeModal('authModal'); applyUI(); if(authCallback) authCallback(); } else alert('비밀번호 불일치'); }
 
